@@ -1,4 +1,4 @@
-// PAKKYAWA Adventure Ver1.0 procedural audio helper
+// PAKKYAWA Adventure procedural audio helper
 // 外部音源なしで、Web Audio APIだけでBGMと効果音を鳴らします。
 'use strict';
 (() => {
@@ -6,9 +6,26 @@
   let master = null;
   let bgmTimer = null;
   let step = 0;
+  let currentStage = 0;
+  let bossMode = false;
+  let lastSignature = '';
 
-  const melody = [523.25, 659.25, 783.99, 659.25, 587.33, 698.46, 880.00, 698.46];
-  const bass = [130.81, 130.81, 146.83, 146.83, 164.81, 164.81, 196.00, 196.00];
+  const STAGE_BGM = [
+    { tempo: 260, wave: 'triangle', vol: .050, mel: [523,659,784,659,587,698,880,698], bass: [131,131,147,147,165,165,196,196] },
+    { tempo: 300, wave: 'sine',     vol: .048, mel: [659,784,988,880,784,659,740,880], bass: [165,196,220,196,175,196,220,247] },
+    { tempo: 240, wave: 'square',   vol: .040, mel: [392,523,659,784,659,523,587,698], bass: [98,131,147,165,147,131,117,147] },
+    { tempo: 285, wave: 'sawtooth', vol: .035, mel: [440,523,587,659,587,523,494,587], bass: [110,110,147,147,131,131,165,165] },
+    { tempo: 215, wave: 'square',   vol: .035, mel: [523,622,740,831,740,622,554,698], bass: [131,156,185,208,185,156,139,175] },
+    { tempo: 230, wave: 'triangle', vol: .052, mel: [523,587,659,784,880,988,880,784], bass: [131,147,165,196,220,247,220,196] }
+  ];
+
+  const BOSS_BGM = {
+    tempo: 170,
+    wave: 'sawtooth',
+    vol: .060,
+    mel: [196,233,262,294,311,294,262,233],
+    bass: [65,65,82,82,73,73,98,98]
+  };
 
   function ensure() {
     if (ctx) return true;
@@ -41,7 +58,7 @@
   function noise(dur = 0.12, gain = 0.08, when = 0) {
     if (!ensure()) return;
     const t = ctx.currentTime + when;
-    const buffer = ctx.createBuffer(1, ctx.sampleRate * dur, ctx.sampleRate);
+    const buffer = ctx.createBuffer(1, Math.max(1, Math.floor(ctx.sampleRate * dur)), ctx.sampleRate);
     const data = buffer.getChannelData(0);
     for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
     const src = ctx.createBufferSource();
@@ -55,18 +72,43 @@
     src.stop(t + dur);
   }
 
+  function pattern() {
+    return bossMode ? BOSS_BGM : STAGE_BGM[currentStage % STAGE_BGM.length];
+  }
+
+  function playStep() {
+    const p = pattern();
+    const m = p.mel[step % p.mel.length];
+    const b = p.bass[Math.floor(step / 2) % p.bass.length];
+    const accent = step % 4 === 0;
+    tone(m, bossMode ? .12 : .16, p.wave, p.vol + (accent ? .012 : 0), 0);
+    tone(m * (bossMode ? 1.25 : 1.5), .07, bossMode ? 'square' : 'sine', p.vol * .42, .075);
+    tone(b, bossMode ? .18 : .22, bossMode ? 'sawtooth' : 'square', bossMode ? .040 : .024, 0);
+    if (bossMode && step % 4 === 0) noise(.035, .018, .02);
+    step++;
+  }
+
+  function restartTimer() {
+    if (bgmTimer) clearInterval(bgmTimer);
+    bgmTimer = setInterval(playStep, pattern().tempo);
+  }
+
   function startBgm() {
     if (!ensure()) return;
     if (ctx.state === 'suspended') ctx.resume();
     if (bgmTimer) return;
-    bgmTimer = setInterval(() => {
-      const m = melody[step % melody.length];
-      const b = bass[Math.floor(step / 2) % bass.length];
-      tone(m, 0.16, 'triangle', 0.050, 0);
-      tone(m * 1.5, 0.08, 'sine', 0.020, 0.08);
-      tone(b, 0.22, 'square', 0.022, 0);
-      step++;
-    }, 260);
+    restartTimer();
+  }
+
+  function setBgm(stage = 0, isBoss = false) {
+    currentStage = Math.max(0, Number(stage) || 0);
+    bossMode = !!isBoss;
+    const sig = currentStage + ':' + bossMode;
+    if (sig === lastSignature) return;
+    lastSignature = sig;
+    step = 0;
+    if (bgmTimer) restartTimer();
+    if (bossMode) se('bossStart');
   }
 
   function se(name) {
@@ -77,6 +119,7 @@
     if (name === 'jump') { tone(330, .10, 'square', .07, 0, 660); tone(990, .05, 'triangle', .035, .05); return; }
     if (name === 'coin') { tone(1046, .06, 'sine', .07, 0); tone(1568, .08, 'sine', .06, .055); return; }
     if (name === 'stomp') { tone(220, .07, 'square', .10, 0, 120); tone(660, .11, 'triangle', .07, .035); noise(.055, .04, 0); return; }
+    if (name === 'bossStart') { tone(98, .20, 'sawtooth', .10, 0, 55); tone(196, .16, 'square', .08, .05); noise(.10, .05, .02); return; }
     if (name === 'boss') { tone(160, .12, 'sawtooth', .12, 0, 90); tone(440, .10, 'square', .07, .04); noise(.12, .08, 0); return; }
     if (name === 'hurt') { tone(140, .18, 'sawtooth', .11, 0, 70); noise(.15, .08, 0); return; }
     if (name === 'clear') { tone(523, .08, 'triangle', .10, 0); tone(659, .08, 'triangle', .10, .09); tone(784, .08, 'triangle', .10, .18); tone(1046, .16, 'triangle', .12, .28); return; }
@@ -91,7 +134,7 @@
     window.removeEventListener('keydown', unlockAudio, true);
   }
 
-  window.PAKKYAWA_SOUND = { startBgm, se };
+  window.PAKKYAWA_SOUND = { startBgm, setBgm, se };
   window.addEventListener('pointerdown', unlockAudio, true);
   window.addEventListener('touchstart', unlockAudio, true);
   window.addEventListener('keydown', unlockAudio, true);
