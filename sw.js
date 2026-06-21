@@ -1,4 +1,4 @@
-const CACHE='pakkyawa-adventure-v1-2';
+const CACHE='pakkyawa-adventure-v1-3';
 const ASSETS=['./','./index.html','./app.js','./audio.js','./manifest.json','./icon.svg'];
 self.addEventListener('install',function(event){event.waitUntil(caches.open(CACHE).then(function(cache){return cache.addAll(ASSETS);}));self.skipWaiting();});
 self.addEventListener('activate',function(event){event.waitUntil(caches.keys().then(function(keys){return Promise.all(keys.filter(function(key){return key!==CACHE;}).map(function(key){return caches.delete(key);}));}));self.clients.claim();});

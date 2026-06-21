@@ -1,7 +1,7 @@
 {
   "name": "PAKKYAWA Adventure",
   "short_name": "PAKKYAWA",
-  "description": "PAKKYAWAの横スクロール王冠アクションゲーム Ver1.2",
+  "description": "PAKKYAWAの横スクロール王冠アクションゲーム Ver1.3",
   "start_url": "./",
   "display": "standalone",
   "orientation": "landscape",
