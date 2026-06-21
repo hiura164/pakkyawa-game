@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="PAKKYAWA" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>PAKKYAWA Adventure</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #20232a;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: #fff;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: none;
+    }
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    #wrap {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(circle at top, #3c4c67 0, #20232a 50%, #111 100%);
+    }
+    canvas {
+      width: min(100vw, calc(100vh * 16 / 9));
+      height: min(100vh, calc(100vw * 9 / 16));
+      border-radius: 16px;
+      box-shadow: 0 18px 45px rgba(0,0,0,0.45);
+      background: #87cefa;
+      touch-action: none;
+    }
+    #controls {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: max(14px, env(safe-area-inset-bottom));
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      padding: 0 22px;
+      pointer-events: none;
+    }
+    .cluster { display: flex; gap: 14px; pointer-events: auto; }
+    .btn {
+      width: 72px;
+      height: 72px;
+      border: 3px solid rgba(255,255,255,0.88);
+      border-radius: 999px;
+      background: rgba(20, 20, 20, 0.34);
+      color: #fff;
+      font-size: 28px;
+      font-weight: 800;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.24);
+      display: grid;
+      place-items: center;
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+    }
+    .btn.jump { width: 86px; height: 86px; font-size: 30px; background: rgba(255, 193, 7, 0.35); }
+    .btn:active { transform: translateY(3px) scale(0.98); background: rgba(255,255,255,0.22); }
+    @media (hover: hover) and (pointer: fine) {
+      #controls { opacity: 0.82; }
+    }
+  </style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="game" width="960" height="540"></canvas>
+  <div id="controls" aria-label="touch controls">
+    <div class="cluster">
+      <button id="left" class="btn" aria-label="left">←</button>
+      <button id="right" class="btn" aria-label="right">→</button>
+    </div>
+    <div class="cluster">
+      <button id="jump" class="btn jump" aria-label="jump">JUMP</button>
+    </div>
+  </div>
+</div>
+<script>
+(() => {
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const GROUND_Y = H - 118;
+  const WORLD_W = 4300;
+  const GRAVITY = 1850;
+  const MOVE = 285;
+  const JUMP = -690;
+
+  let state = 'title';
+  let cameraX = 0;
+  let last = performance.now();
+  let score = 0;
+  let lives = 3;
+  let titleBlink = 0;
+
+  const input = { left:false, right:false, jump:false, justJump:false };
+
+  const player = { x:120, y:GROUND_Y-92, w:70, h:92, vx:0, vy:0, onGround:false, face:1, inv:0 };
+
+  const platforms = [
+    {x:430,y:GROUND_Y-80,w:170,h:22},{x:830,y:GROUND_Y-145,w:190,h:22},
+    {x:1210,y:GROUND_Y-105,w:170,h:22},{x:1600,y:GROUND_Y-190,w:230,h:22},
+    {x:2060,y:GROUND_Y-130,w:170,h:22},{x:2480,y:GROUND_Y-170,w:210,h:22},
+    {x:2930,y:GROUND_Y-120,w:190,h:22},{x:3330,y:GROUND_Y-185,w:220,h:22}
+  ];
+
+  const coins = [];
+  function coinLine(x,y,n,step){ for(let i=0;i<n;i++) coins.push({x:x+i*step,y,r:18,got:false}); }
+  coinLine(360, GROUND_Y-150, 3, 60);
+  coinLine(900, GROUND_Y-220, 4, 60);
+  coinLine(1700, GROUND_Y-260, 5, 60);
+  coinLine(2300, GROUND_Y-210, 3, 60);
+  coinLine(3100, GROUND_Y-250, 4, 60);
+
+  const enemies = [
+    {x:700,y:GROUND_Y-58,w:52,h:58,vx:70,l:650,r:840,dead:false},
+    {x:1260,y:GROUND_Y-168,w:52,h:58,vx:78,l:1210,r:1365,dead:false},
+    {x:1910,y:GROUND_Y-58,w:52,h:58,vx:88,l:1850,r:2070,dead:false},
+    {x:2700,y:GROUND_Y-188,w:52,h:58,vx:78,l:2640,r:2860,dead:false},
+    {x:3410,y:GROUND_Y-58,w:52,h:58,vx:98,l:3360,r:3530,dead:false}
+  ];
+
+  const boss = { x:WORLD_W-700, y:GROUND_Y-142, w:122, h:142, vx:95, dir:1, active:false, dead:false, hp:3, max:3, inv:0, wake:WORLD_W-960 };
+  const goal = { x:WORLD_W-260, y:GROUND_Y-260, w:145, h:90 };
+
+  function resetRun(full=true){
+    player.x=120; player.y=GROUND_Y-player.h; player.vx=0; player.vy=0; player.onGround=false; player.face=1; player.inv=0;
+    cameraX=0;
+    if(full){
+      score=0; lives=3;
+      coins.forEach(c=>c.got=false);
+      enemies.forEach((e,i)=>{ e.dead=false; e.x=[700,1260,1910,2700,3410][i]; });
+      Object.assign(boss,{x:WORLD_W-700, hp:3, active:false, dead:false, inv:0, dir:1});
+    }
+  }
+
+  function loseLife(){
+    if(player.inv>0 || state !== 'play') return;
+    lives--;
+    if(lives <= 0){ state='gameover'; }
+    else { player.inv=1.2; player.x=Math.max(80, player.x-160); player.y=GROUND_Y-player.h; player.vx=0; player.vy=0; }
+  }
+
+  function rect(a,b){ return !(a.x+a.w<b.x || a.x>b.x+b.w || a.y+a.h<b.y || a.y>b.y+b.h); }
+
+  function startOrMenu(){
+    if(state==='title'){ resetRun(true); state='play'; }
+    else if(state==='gameover' || state==='clear'){ state='title'; resetRun(true); }
+  }
+
+  addEventListener('keydown', e=>{
+    if(['ArrowLeft','ArrowRight','ArrowUp','Space','Enter'].includes(e.code)) e.preventDefault();
+    if(e.code==='Enter' || (e.code==='Space' && state!=='play')) startOrMenu();
+    if(e.code==='ArrowLeft') input.left=true;
+    if(e.code==='ArrowRight') input.right=true;
+    if(e.code==='ArrowUp' || e.code==='Space'){ if(!input.jump) input.justJump=true; input.jump=true; }
+  }, {passive:false});
+  addEventListener('keyup', e=>{
+    if(e.code==='ArrowLeft') input.left=false;
+    if(e.code==='ArrowRight') input.right=false;
+    if(e.code==='ArrowUp' || e.code==='Space') input.jump=false;
+  });
+
+  function bind(id, key){
+    const el=document.getElementById(id);
+    const down=e=>{e.preventDefault(); if(state!=='play'){startOrMenu(); return;} if(key==='jump' && !input.jump) input.justJump=true; input[key]=true;};
+    const up=e=>{e.preventDefault(); input[key]=false;};
+    ['pointerdown','touchstart','mousedown'].forEach(ev=>el.addEventListener(ev, down, {passive:false}));
+    ['pointerup','pointercancel','pointerleave','touchend','touchcancel','mouseup','mouseleave'].forEach(ev=>el.addEventListener(ev, up, {passive:false}));
+  }
+  bind('left','left'); bind('right','right'); bind('jump','jump');
+  canvas.addEventListener('pointerdown', e=>{ if(state!=='play'){ e.preventDefault(); startOrMenu(); } }, {passive:false});
+
+  function update(dt){
+    titleBlink += dt;
+    if(state!=='play') return;
+    const prevBottom = player.y + player.h;
+    player.inv=Math.max(0, player.inv-dt);
+    boss.inv=Math.max(0, boss.inv-dt);
+
+    player.vx = 0;
+    if(input.left){ player.vx=-MOVE; player.face=-1; }
+    if(input.right){ player.vx=MOVE; player.face=1; }
+    if(input.justJump && player.onGround){ player.vy=JUMP; player.onGround=false; }
+    input.justJump=false;
+
+    player.vy += GRAVITY*dt;
+    player.x += player.vx*dt;
+    player.y += player.vy*dt;
+    player.onGround=false;
+
+    if(player.y + player.h >= GROUND_Y){ player.y=GROUND_Y-player.h; player.vy=0; player.onGround=true; }
+    for(const p of platforms){
+      const wasAbove = prevBottom <= p.y;
+      if(player.x+player.w>p.x && player.x<p.x+p.w && wasAbove && player.y+player.h>=p.y && player.y+player.h<=p.y+44 && player.vy>=0){
+        player.y=p.y-player.h; player.vy=0; player.onGround=true;
+      }
+    }
+    player.x=Math.max(0, Math.min(WORLD_W-player.w, player.x));
+    if(player.y>H+300) loseLife();
+
+    for(const e of enemies){
+      if(e.dead) continue;
+      e.x += e.vx*dt;
+      if(e.x<e.l){e.x=e.l; e.vx*=-1;}
+      if(e.x+e.w>e.r){e.x=e.r-e.w; e.vx*=-1;}
+    }
+
+    if(!boss.dead && player.x>boss.wake) boss.active=true;
+    if(boss.active && !boss.dead){
+      boss.x += boss.vx*boss.dir*dt;
+      const left=boss.wake, right=WORLD_W-140;
+      if(boss.x<left){boss.x=left; boss.dir=1;}
+      if(boss.x+boss.w>right){boss.x=right-boss.w; boss.dir=-1;}
+    }
+
+    for(const c of coins){
+      if(c.got) continue;
+      const dx=(player.x+player.w/2)-c.x, dy=(player.y+player.h/2)-c.y;
+      if(Math.hypot(dx,dy)<c.r+28){ c.got=true; score++; }
+    }
+
+    const pr={x:player.x,y:player.y,w:player.w,h:player.h};
+    for(const e of enemies){
+      if(e.dead) continue;
+      if(rect(pr,e)){
+        const stomp = prevBottom <= e.y+12 && player.y+player.h >= e.y && player.vy>=0;
+        if(stomp){ e.dead=true; score+=5; player.vy=JUMP*0.72; }
+        else loseLife();
+      }
+    }
+    if(boss.active && !boss.dead && rect(pr,boss)){
+      const stomp = prevBottom <= boss.y+15 && player.y+player.h >= boss.y && player.vy>=0;
+      if(stomp && boss.inv<=0){ boss.hp--; boss.inv=.45; score+=10; player.vy=JUMP*.8; if(boss.hp<=0) boss.dead=true; }
+      else if(!stomp && boss.inv<=0) loseLife();
+    }
+
+    if(boss.dead && player.x+player.w/2>goal.x && player.x+player.w/2<goal.x+goal.w && player.y+player.h>goal.y){ state='clear'; }
+
+    cameraX = player.x - W*.35;
+    cameraX = Math.max(0, Math.min(WORLD_W-W, cameraX));
+  }
+
+  function roundRect(x,y,w,h,r,fill,stroke){
+    ctx.beginPath();
+    ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath();
+    if(fill) ctx.fill(); if(stroke) ctx.stroke();
+  }
+
+  function bg(){
+    ctx.fillStyle='#8ad8ff'; ctx.fillRect(0,0,WORLD_W,H);
+    ctx.fillStyle='#74b9e7';
+    for(const m of [[0,260,520],[450,760,1100],[1200,1540,1920],[2200,2550,2950],[3100,3450,3860]]){
+      ctx.beginPath(); ctx.moveTo(m[0],H-175); ctx.lineTo(m[1],H-270); ctx.lineTo(m[2],H-175); ctx.closePath(); ctx.fill();
+    }
+    ctx.fillStyle='#49ad60';
+    for(let x=-120;x<WORLD_W;x+=700){ ctx.beginPath(); ctx.moveTo(x,H-116); ctx.quadraticCurveTo(x+260,H-240,x+580,H-116); ctx.lineTo(x+580,H); ctx.lineTo(x,H); ctx.closePath(); ctx.fill(); }
+    function cloud(x,y,s){ ctx.fillStyle='rgba(255,255,255,.92)'; ctx.beginPath(); ctx.arc(x,y,23*s,0,7); ctx.arc(x+32*s,y-10*s,31*s,0,7); ctx.arc(x+68*s,y,24*s,0,7); ctx.fill(); }
+    for(let x=180;x<WORLD_W;x+=520) cloud(x,70+(x%3)*18,1+(x%2)*.1);
+  }
+
+  function terrain(){
+    ctx.fillStyle='#55b83e'; ctx.fillRect(0,GROUND_Y,WORLD_W,42);
+    ctx.fillStyle='#8a572b'; ctx.fillRect(0,GROUND_Y+42,WORLD_W,H-GROUND_Y-42);
+    ctx.fillStyle='rgba(90,45,20,.28)'; for(let x=40;x<WORLD_W;x+=90){ ctx.beginPath(); ctx.arc(x,GROUND_Y+74,10,0,7); ctx.fill(); }
+    for(const p of platforms){ ctx.fillStyle='#55b83e'; roundRect(p.x,p.y,p.w,p.h,8,true,false); ctx.fillStyle='#70431f'; ctx.fillRect(p.x,p.y+p.h-6,p.w,6); }
+    for(let x=260;x<WORLD_W;x+=520){ ctx.fillStyle='#f56545'; ctx.beginPath(); ctx.arc(x,GROUND_Y-10,18,Math.PI,0); ctx.fill(); ctx.fillStyle='#f7d9a8'; ctx.fillRect(x-6,GROUND_Y-10,12,22); }
+  }
+
+  function drawCoins(){
+    for(const c of coins){ if(c.got) continue; const g=ctx.createRadialGradient(c.x-5,c.y-5,3,c.x,c.y,c.r); g.addColorStop(0,'#fff6a5'); g.addColorStop(1,'#f6bf23'); ctx.fillStyle=g; ctx.beginPath(); ctx.arc(c.x,c.y,c.r,0,7); ctx.fill(); ctx.lineWidth=3; ctx.strokeStyle='#d99d00'; ctx.stroke(); }
+  }
+
+  function crown(x,y,w,h){
+    ctx.fillStyle='#ffe21c'; ctx.beginPath(); ctx.moveTo(x,y+h); ctx.lineTo(x+w,y+h); ctx.lineTo(x+w,y+h*.42); ctx.lineTo(x+w*.78,y+4); ctx.lineTo(x+w*.5,y+h*.32); ctx.lineTo(x+w*.22,y+4); ctx.lineTo(x,y+h*.42); ctx.closePath(); ctx.fill(); ctx.strokeStyle='#d9a300'; ctx.lineWidth=3; ctx.stroke();
+  }
+
+  function drawGoal(){ if(!boss.dead) return; crown(goal.x,goal.y,goal.w,goal.h); ctx.fillStyle='#fff'; roundRect(goal.x+18,goal.y+goal.h+13,goal.w-36,38,8,true,true); ctx.fillStyle='#423'; ctx.font='bold 20px system-ui'; ctx.textAlign='center'; ctx.fillText('GOAL',goal.x+goal.w/2,goal.y+goal.h+39); }
+
+  function drawHuman(x,y,w,h,type='p',face=1){
+    ctx.save(); if(face<0){ ctx.translate(x+w/2,0); ctx.scale(-1,1); ctx.translate(-x-w/2,0); }
+    if(type==='p'){
+      ctx.fillStyle='#e53935'; ctx.beginPath(); ctx.moveTo(x+14,y+44); ctx.lineTo(x+0,y+h); ctx.lineTo(x+w,y+h); ctx.lineTo(x+w-16,y+44); ctx.closePath(); ctx.fill();
+    }
+    ctx.fillStyle= type==='boss' ? '#ff8a65' : (type==='enemy'?'#ffb74d':'#1e88e5'); roundRect(x+10,y+42,w-20,h-42,10,true,false);
+    if(type==='p'){ ctx.fillStyle='#4fc3f7'; ctx.fillRect(x+14,y+78,20,28); ctx.fillRect(x+w-34,y+78,20,28); ctx.fillStyle='#8d6e63'; ctx.fillRect(x+9,y+101,28,12); ctx.fillRect(x+w-37,y+101,28,12); }
+    const cx=x+w/2, cy=y+24;
+    ctx.fillStyle='#ffd9b3'; ctx.beginPath(); ctx.arc(cx,cy,type==='boss'?32:26,0,7); ctx.fill();
+    ctx.fillStyle='#1c1c1c'; ctx.beginPath(); ctx.arc(cx,cy-7,type==='boss'?33:27,Math.PI,0); ctx.fill();
+    ctx.fillStyle='#111'; ctx.beginPath(); ctx.arc(cx-9,cy,4.5,0,7); ctx.arc(cx+9,cy,4.5,0,7); ctx.fill();
+    ctx.strokeStyle='#222'; ctx.lineWidth=2.5; ctx.beginPath(); ctx.arc(cx,cy+8,8,0.12*Math.PI,0.88*Math.PI); ctx.stroke();
+    if(type==='enemy') { ctx.fillStyle='#ff7043'; ctx.beginPath(); ctx.moveTo(cx-18,y-2); ctx.lineTo(cx-6,y-18); ctx.lineTo(cx+2,y-4); ctx.lineTo(cx+15,y-19); ctx.lineTo(cx+19,y-2); ctx.closePath(); ctx.fill(); }
+    else crown(cx-(type==='boss'?38:22), y-(type==='boss'?12:22), type==='boss'?76:44, type==='boss'?36:28);
+    ctx.restore();
+  }
+
+  function drawEnemies(){ enemies.forEach(e=>{ if(!e.dead) drawHuman(e.x,e.y,e.w,e.h,'enemy', e.vx>=0?1:-1); }); }
+  function drawBoss(){ if(boss.dead) return; if(boss.active || cameraX>boss.wake-500){ drawHuman(boss.x,boss.y,boss.w,boss.h,'boss', boss.dir); ctx.fillStyle='rgba(0,0,0,.35)'; ctx.fillRect(boss.x+8,boss.y-34,boss.w-16,12); ctx.fillStyle='#ff3d3d'; ctx.fillRect(boss.x+8,boss.y-34,(boss.w-16)*(boss.hp/boss.max),12); } }
+  function drawPlayer(){ if(player.inv>0 && Math.floor(player.inv*12)%2===0) return; drawHuman(player.x,player.y,player.w,player.h,'p',player.face); }
+
+  function hud(){
+    ctx.setTransform(1,0,0,1,0,0);
+    ctx.fillStyle='rgba(0,0,0,.28)'; roundRect(16,14,250,42,14,true,false);
+    ctx.fillStyle='#fff'; ctx.font='bold 20px system-ui'; ctx.textAlign='left'; ctx.fillText('COINS '+score,32,42); ctx.fillText('LIVES '+lives,150,42);
+    if(state==='title' || state==='gameover' || state==='clear'){
+      ctx.fillStyle='rgba(0,0,0,.58)'; ctx.fillRect(0,0,W,H);
+      ctx.textAlign='center';
+      if(state==='title'){
+        ctx.fillStyle='#ffe21c'; ctx.font='900 52px system-ui'; ctx.fillText('PAKKYAWA',W/2,H/2-88);
+        ctx.fillStyle='#fff'; ctx.font='800 34px system-ui'; ctx.fillText('ADVENTURE',W/2,H/2-46);
+        ctx.font='18px system-ui'; ctx.fillText('敵を踏んで倒し、ボスを3回踏んで王冠ゴールへ！',W/2,H/2+4);
+        if(Math.floor(titleBlink*2)%2===0) ctx.fillText('TAP / ENTER / SPACE でスタート',W/2,H/2+52);
+      } else if(state==='gameover'){
+        ctx.fillStyle='#ff6666'; ctx.font='900 48px system-ui'; ctx.fillText('GAME OVER',W/2,H/2-24);
+        ctx.fillStyle='#fff'; ctx.font='20px system-ui'; ctx.fillText('TAP / ENTER でタイトルへ',W/2,H/2+30);
+      } else {
+        ctx.fillStyle='#ffe21c'; ctx.font='900 48px system-ui'; ctx.fillText('STAGE CLEAR!!',W/2,H/2-24);
+        ctx.fillStyle='#fff'; ctx.font='20px system-ui'; ctx.fillText('SCORE '+score+'　TAP / ENTER でタイトルへ',W/2,H/2+30);
+      }
+    }
+  }
+
+  function render(){
+    ctx.clearRect(0,0,W,H);
+    ctx.save(); ctx.translate(-cameraX,0);
+    bg(); terrain(); drawCoins(); drawGoal(); drawEnemies(); drawBoss(); drawPlayer();
+    ctx.restore(); hud();
+  }
+
+  function loop(now){ const dt=Math.min((now-last)/1000,0.033); last=now; update(dt); render(); requestAnimationFrame(loop); }
+  resetRun(true); requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
