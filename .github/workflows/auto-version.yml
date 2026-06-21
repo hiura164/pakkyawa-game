@@ -34,10 +34,15 @@ jobs:
               next_version = '1.1'
 
           version_path.write_text(next_version + '\n', encoding='utf-8')
+          cache_version = next_version.replace('.', '-')
 
           replacements = {
               'index.html': [
                   (r'PAKKYAWA Adventure Ver\d+\.\d+', f'PAKKYAWA Adventure Ver{next_version}'),
+                  (r'(manifest\.json)(\?v=)?\d*\.?\d*', f'manifest.json?v={next_version}'),
+                  (r'(icon\.svg)(\?v=)?\d*\.?\d*', f'icon.svg?v={next_version}'),
+                  (r'(audio\.js)(\?v=)?\d*\.?\d*', f'audio.js?v={next_version}'),
+                  (r'(app\.js)(\?v=)?\d*\.?\d*', f'app.js?v={next_version}'),
               ],
               'app.js': [
                   (r'Loading Ver\d+\.\d+\.\.\.', f'Loading Ver{next_version}...'),
@@ -49,7 +54,7 @@ jobs:
                   (r'PAKKYAWA Adventure Ver\d+\.\d+', f'PAKKYAWA Adventure Ver{next_version}'),
               ],
               'sw.js': [
-                  (r"pakkyawa-adventure-v[0-9A-Za-z_.-]+", f'pakkyawa-adventure-v{next_version.replace(".", "-")}'),
+                  (r"pakkyawa-adventure-v[0-9A-Za-z_.-]+", f'pakkyawa-adventure-v{cache_version}'),
               ],
           }
 
