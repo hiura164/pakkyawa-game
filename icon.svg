@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#8ad8ff"/>
+      <stop offset="1" stop-color="#1e88e5"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" rx="220" fill="url(#bg)"/>
+  <path d="M248 700 C210 790 196 868 196 868 L406 820 L616 868 L828 820 C790 742 734 660 676 602 Z" fill="#e53935"/>
+  <circle cx="512" cy="410" r="178" fill="#ffd9b3"/>
+  <path d="M332 374 C360 268 650 262 700 382 C610 334 448 326 332 374 Z" fill="#111"/>
+  <circle cx="448" cy="420" r="28" fill="#111"/>
+  <circle cx="576" cy="420" r="28" fill="#111"/>
+  <circle cx="457" cy="410" r="8" fill="#fff"/>
+  <circle cx="585" cy="410" r="8" fill="#fff"/>
+  <path d="M464 500 Q512 540 560 500" fill="none" stroke="#111" stroke-width="18" stroke-linecap="round"/>
+  <path d="M320 620 Q512 560 704 620 L680 820 Q512 880 344 820 Z" fill="#1e88e5"/>
+  <path d="M326 254 L390 112 L478 228 L546 78 L622 230 L712 116 L700 286 Z" fill="#ffe21c" stroke="#c98f00" stroke-width="16" stroke-linejoin="round"/>
+  <text x="512" y="940" font-family="Arial Black, system-ui" font-size="88" text-anchor="middle" fill="#fff" stroke="#5b341d" stroke-width="10" paint-order="stroke">PAKKYAWA</text>
+</svg>
