@@ -1,0 +1,18 @@
+{
+  "name": "PAKKYAWA Adventure",
+  "short_name": "PAKKYAWA",
+  "description": "PAKKYAWAの横スクロール王冠アクションゲーム Ver1.0",
+  "start_url": "./",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#111827",
+  "theme_color": "#1e88e5",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
