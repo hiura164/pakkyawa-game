@@ -1,25 +1,5 @@
-const CACHE = 'pakkyawa-adventure-v1';
-const ASSETS = ['./', './index.html', './app.js', './manifest.json', './icon.svg'];
-
-self.addEventListener('install', event => {
-  event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS)));
-  self.skipWaiting();
-});
-
-self.addEventListener('activate', event => {
-  event.waitUntil(
-    caches.keys().then(keys => Promise.all(keys.filter(key => key !== CACHE).map(key => caches.delete(key))))
-  );
-  self.clients.claim();
-});
-
-self.addEventListener('fetch', event => {
-  if (event.request.method !== 'GET') return;
-  event.respondWith(
-    caches.match(event.request).then(cached => cached || fetch(event.request).then(response => {
-      const copy = response.clone();
-      caches.open(CACHE).then(cache => cache.put(event.request, copy));
-      return response;
-    }).catch(() => caches.match('./index.html')))
-  );
-});
+const CACHE='pakkyawa-adventure-v1-1';
+const ASSETS=['./','./index.html','./app.js','./audio.js','./manifest.json','./icon.svg'];
+self.addEventListener('install',function(event){event.waitUntil(caches.open(CACHE).then(function(cache){return cache.addAll(ASSETS);}));self.skipWaiting();});
+self.addEventListener('activate',function(event){event.waitUntil(caches.keys().then(function(keys){return Promise.all(keys.filter(function(key){return key!==CACHE;}).map(function(key){return caches.delete(key);}));}));self.clients.claim();});
+self.addEventListener('fetch',function(event){if(event.request.method!=='GET')return;event.respondWith(caches.match(event.request).then(function(cached){return cached||fetch(event.request).then(function(response){var copy=response.clone();caches.open(CACHE).then(function(cache){cache.put(event.request,copy);});return response;}).catch(function(){return caches.match('./index.html');});}));});
