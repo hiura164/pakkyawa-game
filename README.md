@@ -1,4 +1,4 @@
-# PAKKYAWA Adventure Ver1.3
+# PAKKYAWA Adventure Ver1.4
 
 PAKKYAWA の横スクロール王冠アクションゲームです。GitHub Pages でそのまま公開できる HTML5 Canvas / PWA 構成です。
 
